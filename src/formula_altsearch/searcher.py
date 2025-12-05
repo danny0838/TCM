@@ -14,8 +14,9 @@ def load_formula_database(filepath):
     return database
 
 
-def all_combinations(database, exclude):
-    keys = [key for key in database if key != exclude]
+def all_combinations(database, excludes=None):
+    excludes = set() if excludes is None else excludes
+    keys = [key for key in database if key not in excludes]
     for i in range(1, min(len(keys), 2) + 1):
         yield from combinations(keys, i)
 
@@ -50,8 +51,8 @@ def calculate_match(target_composition, combination, database, penalty_factor):
     return match_percentage, combination, dosages
 
 
-def find_best_matches(name, database, target_composition, penalty_factor, top_n=5):
-    all_possible_combinations = all_combinations(database, name if name else '')
+def find_best_matches(database, target_composition, excludes, penalty_factor, top_n=5):
+    all_possible_combinations = all_combinations(database, excludes)
 
     start = time.time()
     matches = [calculate_match(target_composition, combo, database, penalty_factor) for combo in all_possible_combinations]

@@ -18,7 +18,7 @@ class TestUtilities(unittest.TestCase):
             ('桂枝湯', '桂枝去芍藥湯'), ('桂枝湯', '麻黃湯'), ('桂枝去芍藥湯', '麻黃湯'),
         ])
 
-        self.assertEqual(list(searcher.all_combinations(database, '桂枝湯')), [
+        self.assertEqual(list(searcher.all_combinations(database, {'桂枝湯'})), [
             ('桂枝去芍藥湯',), ('麻黃湯',), ('桂枝去芍藥湯', '麻黃湯'),
         ])
 
@@ -110,8 +110,10 @@ class TestUtilities(unittest.TestCase):
         }
         penalty_factor = 2
 
-        # without name
-        best_matches, _elapsed = searcher.find_best_matches(None, database, target_composition, penalty_factor)
+        # without excludes
+        best_matches, _elapsed = searcher.find_best_matches(
+            database, target_composition,
+            excludes=None, penalty_factor=penalty_factor)
 
         self.assertEqual(len(best_matches), 3)
 
@@ -130,8 +132,10 @@ class TestUtilities(unittest.TestCase):
         self.assertEqual(combination, ('桂枝去芍藥湯',))
         numpy.testing.assert_allclose(dosages, [2], atol=1e-12)
 
-        # with name
-        best_matches, _elapsed = searcher.find_best_matches('桂枝湯', database, target_composition, penalty_factor)
+        # with excludes
+        best_matches, _elapsed = searcher.find_best_matches(
+            database, target_composition,
+            excludes={'桂枝湯'}, penalty_factor=penalty_factor)
 
         self.assertEqual(len(best_matches), 1)
 

@@ -10,9 +10,8 @@ def parse_input_item(input_str):
     return None, None
 
 
-def search(name, database, target_composition, penalty_factor, top_n):
-    best_matches, elapsed = searcher.find_best_matches(name, database, target_composition, penalty_factor, top_n)
-
+def search(database, target_composition, **options):
+    best_matches, elapsed = searcher.find_best_matches(database, target_composition, **options)
     print(f'計算匹配度用時: {elapsed}')
 
     for match in best_matches:
@@ -59,8 +58,8 @@ def cmd_search(args):
     if not args.items:
         interactive_input(args)
 
-    formula_name = None
     target_composition = {}
+    excludes = None
     if len(args.items) > 1:
         all_herbs = set()
         for formula in database.values():
@@ -83,8 +82,10 @@ def cmd_search(args):
             return
         for herb, amount in database[formula_name].items():
             target_composition[herb] = input_dosage * amount
+        excludes = {formula_name}
 
-    search(formula_name, database, target_composition, args.penalty, args.num)
+    search(database, target_composition,
+           excludes=excludes, penalty_factor=args.penalty, top_n=args.num)
 
 
 def interactive_input(args):

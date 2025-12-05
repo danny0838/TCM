@@ -21,7 +21,10 @@ class TestCmdSearch(unittest.TestCase):
             num=6,
         ))
         m_load.assert_called_once_with('custom_db.json')
-        m_search.assert_called_once_with('桂枝湯', m_load.return_value, {'桂枝': 9, '白芍': 6}, 3, 6)
+        m_search.assert_called_once_with(
+            m_load.return_value, {'桂枝': 9, '白芍': 6},
+            excludes={'桂枝湯'}, penalty_factor=3, top_n=6,
+        )
 
     @mock.patch('sys.stdout', new_callable=StringIO)
     @mock.patch.object(cli, 'search')
@@ -48,7 +51,10 @@ class TestCmdSearch(unittest.TestCase):
             num=10,
         ))
         m_load.assert_called_once_with('custom_db.json')
-        m_search.assert_called_once_with(None, m_load.return_value, {'桂枝': 4, '白芍': 2}, 5, 10)
+        m_search.assert_called_once_with(
+            m_load.return_value, {'桂枝': 4, '白芍': 2},
+            excludes=None, penalty_factor=5, top_n=10,
+        )
 
     @mock.patch('sys.stdout', new_callable=StringIO)
     @mock.patch.object(cli, 'search')
@@ -67,11 +73,23 @@ class TestCmdSearch(unittest.TestCase):
     @mock.patch('sys.stdout', new_callable=StringIO)
     @mock.patch.object(cli.searcher, 'find_best_matches', wraps=cli.searcher.find_best_matches)
     def test_search_herbs(self, m_find, m_stdout):
-        cli.search(None, DATABASE_SAMPLE, {'桂枝': 9, '白芍': 6}, 3, 6)
-        m_find.assert_called_once_with(None, DATABASE_SAMPLE, {'桂枝': 9, '白芍': 6}, 3, 6)
+        cli.search(
+            DATABASE_SAMPLE, {'桂枝': 9, '白芍': 6},
+            excludes=None, penalty_factor=3, top_n=6,
+        )
+        m_find.assert_called_once_with(
+            DATABASE_SAMPLE, {'桂枝': 9, '白芍': 6},
+            excludes=None, penalty_factor=3, top_n=6,
+        )
 
     @mock.patch('sys.stdout', new_callable=StringIO)
     @mock.patch.object(cli.searcher, 'find_best_matches', wraps=cli.searcher.find_best_matches)
     def test_search_formula(self, m_find, m_stdout):
-        cli.search('桂枝湯', DATABASE_SAMPLE2, {'桂枝': 9, '白芍': 6}, 3, 6)
-        m_find.assert_called_once_with('桂枝湯', DATABASE_SAMPLE2, {'桂枝': 9, '白芍': 6}, 3, 6)
+        cli.search(
+            DATABASE_SAMPLE2, {'桂枝': 9, '白芍': 6},
+            excludes={'桂枝湯'}, penalty_factor=3, top_n=6,
+        )
+        m_find.assert_called_once_with(
+            DATABASE_SAMPLE2, {'桂枝': 9, '白芍': 6},
+            excludes={'桂枝湯'}, penalty_factor=3, top_n=6,
+        )
