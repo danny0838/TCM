@@ -4,8 +4,17 @@ from . import __version__, searcher
 
 
 def search(database, target_composition, **options):
+    print('目標組成:')
+    for herb, amount in target_composition.items():
+        print(f'    {herb}: {amount:.2f}')
+    print('')
+
+    print(f'方劑總數: {len(database.keys())}')
+    print('')
+
     best_matches, elapsed = searcher.find_best_matches(database, target_composition, **options)
-    print(f'計算匹配度用時: {elapsed}')
+    print(f'搜尋費時: {elapsed}')
+    print('')
 
     for match in best_matches:
         match_percentage, combination, dosages = match
@@ -23,20 +32,20 @@ def search(database, target_composition, **options):
             if (amount := target_composition.get(herb)) and not combined_composition.get(herb)
         }
 
-        combination_str = ', '.join(f'{formula}{dosage:.1f}' for formula, dosage in zip(combination, dosages))
-        print(f'匹配度: {match_percentage:.2f}%，組合: {combination_str}')
+        combination_str = ' '.join(f'{formula}:{dosage:.1f}' for formula, dosage in zip(combination, dosages))
+        total = sum(dosages)
+        print(f'匹配度: {match_percentage:.2f}%，組合: {combination_str} (總計: {total:.1f})')
         for herb, amount in herbs_amount:
             if herb in target_composition:
                 herb = f'**{herb}**'
             print(f'    {herb}: {amount:.2f}')
 
         if missing_herbs:
-            print('尚缺藥物：')
-            for herb in missing_herbs:
-                print(f'    {herb}')
-        else:
-            print('所有目標藥材已被完全匹配。')
-        print('\n')
+            print('尚缺藥物:')
+            for herb, amount in missing_herbs.items():
+                print(f'    {herb}: {amount:.2f}')
+
+        print('')
 
 
 def cmd_search(args):
@@ -45,8 +54,6 @@ def cmd_search(args):
     except OSError:
         print(f'無法載入資料庫檔案: {args.database}')
         return
-
-    print(f'方劑數量:{len(database.keys())}')
 
     target_composition = {}
     excludes = None
