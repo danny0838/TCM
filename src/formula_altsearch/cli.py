@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 from . import __version__, converter, searcher
 
@@ -13,7 +14,9 @@ def search(database, target_composition, **options):
     print(f'品項總數: {len(database.keys())}')
     print('')
 
-    best_matches, elapsed = searcher.find_best_matches(database, target_composition, **options)
+    start = time.time()
+    best_matches = searcher.find_best_matches(database, target_composition, **options)
+    elapsed = time.time() - start
     print(f'搜尋費時: {elapsed}')
     print('')
 

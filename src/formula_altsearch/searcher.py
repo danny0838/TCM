@@ -1,9 +1,9 @@
 import logging
 import os
-import time
 from contextlib import nullcontext
 from itertools import combinations
 
+import numpy as np
 import yaml
 from scipy.optimize import minimize
 
@@ -11,6 +11,8 @@ DEFAULT_DATAFILE = os.path.normpath(os.path.join(__file__, '..', 'database.yaml'
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
+
+undefined = object()
 
 
 def load_formula_database(file):
@@ -83,20 +85,24 @@ def calculate_match(target_composition, combination, database, penalty_factor):
     result = minimize(calculate_delta, initial_guess, args=(target_composition, combination, database, penalty_factor), method='SLSQP', bounds=bounds)
 
     if not result.success:
-        return 0, combination, []
+        return [], 0, 0
 
-    match_percentage = 100 - result.fun
     dosages = result.x
-    return match_percentage, combination, dosages
+    delta = result.fun
+    match_percentage = 100 - delta
+    return dosages, delta, match_percentage
 
 
-def find_best_matches(database, target_composition, excludes, penalty_factor, top_n=5):
+def find_best_matches(database, target_composition, top_n=5,
+                      excludes=undefined, penalty_factor=undefined):
     all_possible_combinations = all_combinations(database, target_composition, excludes)
 
-    start = time.time()
-    matches = [calculate_match(target_composition, combo, database, penalty_factor) for combo in all_possible_combinations]
-    elapsed = time.time() - start
+    matches = []
+    for combo in all_possible_combinations:
+        dosages, delta, match_percentage = calculate_match(target_composition, combo, database, penalty_factor)
+        log.debug('估值 %s %s: %.3f (%.2f%%)', combo, np.round(dosages, 3), delta, match_percentage)
+        matches.append((match_percentage, combo, dosages))
 
     matches.sort(key=lambda x: -x[0])
 
-    return matches[:top_n], elapsed
+    return matches[:top_n]

@@ -178,25 +178,25 @@ class TestUtilities(unittest.TestCase):
         penalty_factor = 2
 
         combination = ['桂枝湯', '桂枝去芍藥湯']
-        match_percentage, _combination, dosages = searcher.calculate_match(target_composition, combination, database, penalty_factor)
-        self.assertAlmostEqual(match_percentage, 100)
-        self.assertIs(_combination, combination)
+        dosages, delta, match_percentage = searcher.calculate_match(target_composition, combination, database, penalty_factor)
         numpy.testing.assert_allclose(dosages, [2, 0], atol=1e-12)
+        self.assertAlmostEqual(delta, 0)
+        self.assertAlmostEqual(match_percentage, 100)
 
         combination = ['桂枝去芍藥湯', '桂枝湯']
-        match_percentage, _combination, dosages = searcher.calculate_match(target_composition, combination, database, penalty_factor)
-        self.assertAlmostEqual(match_percentage, 100)
-        self.assertIs(_combination, combination)
+        dosages, delta, match_percentage = searcher.calculate_match(target_composition, combination, database, penalty_factor)
         numpy.testing.assert_allclose(dosages, [0, 2], atol=1e-12)
+        self.assertAlmostEqual(delta, 0)
+        self.assertAlmostEqual(match_percentage, 100)
 
         target_composition = {
             '桂枝': 1.2, '白芍': 1.2, '生薑': 1.2, '大棗': 1.0, '炙甘草': 0.8, '白朮': 1.0,
         }
         combination = ['桂枝湯', '桂枝去芍藥湯']
-        match_percentage, _combination, dosages = searcher.calculate_match(target_composition, combination, database, penalty_factor)
-        self.assertAlmostEqual(match_percentage, 99)
-        self.assertIs(_combination, combination)
+        dosages, delta, match_percentage = searcher.calculate_match(target_composition, combination, database, penalty_factor)
         numpy.testing.assert_allclose(dosages, [2, 0], atol=1e-12)
+        self.assertAlmostEqual(delta, 1)
+        self.assertAlmostEqual(match_percentage, 99)
 
     def test_find_best_matches(self):
         database = {
@@ -209,7 +209,7 @@ class TestUtilities(unittest.TestCase):
         penalty_factor = 2
 
         # without excludes
-        best_matches, _elapsed = searcher.find_best_matches(
+        best_matches = searcher.find_best_matches(
             database, target_composition,
             excludes=None, penalty_factor=penalty_factor)
 
@@ -231,7 +231,7 @@ class TestUtilities(unittest.TestCase):
         numpy.testing.assert_allclose(dosages, [2], atol=1e-12)
 
         # with excludes
-        best_matches, _elapsed = searcher.find_best_matches(
+        best_matches = searcher.find_best_matches(
             database, target_composition,
             excludes={'桂枝湯'}, penalty_factor=penalty_factor)
 
