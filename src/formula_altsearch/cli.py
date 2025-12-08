@@ -103,6 +103,29 @@ def cmd_search(args):
            penalty_factor=args.penalty, top_n=args.num)
 
 
+def cmd_list(args):
+    searcher.log.setLevel(args.verbosity)
+    try:
+        database = searcher.load_formula_database(args.database)
+    except OSError:
+        print(f'無法載入資料庫檔案: {args.database}')
+        return
+
+    if args.raw:
+        names = sorted({k for c in database.values() for k in c})
+    else:
+        names = sorted(database)
+
+    if args.keywords:
+        keywords = set(args.keywords)
+        fn = any if args.any else all
+        for name in (n for n in names if fn(k in n for k in keywords)):
+            print(name)
+    else:
+        for name in names:
+            print(name)
+
+
 def cmd_convert(args):
     converter.log.setLevel(args.verbosity)
     handler = converter.LicenseFileHandler()
@@ -169,6 +192,30 @@ def parse_args(argv=None):
         help="""最佳匹配結果顯示筆數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
+        '-d', '--database', metavar='FILE', default=searcher.DEFAULT_DATAFILE, action='store',
+        help="""使用自訂的資料庫檔案 (預設: %(default)s)""",
+    )
+
+    parser_list = subparsers.add_parser(
+        'list', aliases=['l'],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="""列出資料庫中的相關品項""",
+        description="""列出資料庫中的相關品項。""",
+    )
+    parser_list.set_defaults(func=cmd_list)
+    parser_list.add_argument(
+        'keywords', metavar='KEYWORD', nargs='*', action='store',
+        help="""要查詢的關鍵字詞片段。例如 '苓 桂' 可列出所有含「苓」及「桂」的品項""",
+    )
+    parser_list.add_argument(
+        '-r', '--raw', action='store_true',
+        help="""查詢資料庫中的生藥品項""",
+    )
+    parser_list.add_argument(
+        '--any', action='store_true',
+        help="""列出符合任一關鍵字詞片段的品項""",
+    )
+    parser_list.add_argument(
         '-d', '--database', metavar='FILE', default=searcher.DEFAULT_DATAFILE, action='store',
         help="""使用自訂的資料庫檔案 (預設: %(default)s)""",
     )
