@@ -78,11 +78,11 @@ class TestUtilities(unittest.TestCase):
             },
         })
 
-    @mock.patch.object(_searcher, 'ExhaustiveFormulaSearcher')
+    @mock.patch.object(_searcher, 'BeamFormulaSearcher')
     def test_find_best_matches(self, m_cls):
         _searcher.find_best_matches({}, {}, excludes=None, penalty_factor=2.0)
         m_cls.assert_called_with({}, {}, excludes=None, penalty_factor=2.0)
-        m_cls().find_best_matches.assert_called_with(5)
+        m_cls().find_best_matches.assert_called_with(None)
 
 
 class TestExhaustiveFormulaSearcher(unittest.TestCase):

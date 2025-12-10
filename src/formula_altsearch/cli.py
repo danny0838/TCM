@@ -127,9 +127,10 @@ def cmd_search(args):
             print(f'資料庫尚未收錄以下品項: {", ".join(unknowns)}')
             return
 
-    search(database, target_composition,
+    search(database, target_composition, algorithm=args.algorithm, top_n=args.num,
            excludes=excludes, max_cformulas=args.max_cformulas, max_sformulas=args.max_sformulas,
-           penalty_factor=args.penalty, top_n=args.num)
+           penalty_factor=args.penalty,
+           beam_width_factor=args.beam_width_factor, beam_multiplier=args.beam_multiplier)
 
 
 def cmd_list(args):
@@ -191,6 +192,10 @@ def parse_args(argv=None):
         formatter_class=CJKRawDescriptionHelpFormatter,
         help="""搜尋中藥配方的替代組合""",
         description="""搜尋中藥配方的替代組合。""",
+        epilog="""ALGORITHM 演算法可用選項:
+  - beam (集束演算法): 利用快捷算式及多層篩選避開探索潛力偏低的組合，能很快找出許多接近最佳的組合，\
+但有機會錯過某些有價值的組合。
+  - exhaustive (窮舉演算法): 窮舉測試所有可能組合，可保證找出最佳的組合，但組合數較多時運算速度極慢。""",
     )
     parser_search.set_defaults(func=cmd_search)
     parser_search.add_argument(
@@ -225,6 +230,27 @@ def parse_args(argv=None):
     parser_search.add_argument(
         '-d', '--database', metavar='FILE', default=searcher.DEFAULT_DATAFILE, action='store',
         help="""使用自訂的資料庫檔案 (預設: %(default)s)""",
+    )
+    parser_search.add_argument(
+        '-a', '--algorithm', default='beam', metavar='ALGORITHM', action='store',
+        help="""要使用的搜尋演算法 (預設: %(default)s)""",
+    )
+    parser_search.add_argument(
+        '--bwf', '--beam-width-factor', dest='beam_width_factor', metavar='FACTOR',
+        default=2.0, type=float, action='store',
+        help="""集束搜尋演算法的集束寬度倍率。例如當此值為 2.0，而最佳匹配結果輸出筆數為 5 時，集束寬度為 10 \
+(= 5 * 2.0)，演算法會篩選出 10 個最佳的 1 個複方解，對這些最佳解做加上第 2 個複方的測試，再篩選出 10 個最佳解做\
+加上第 3 個複方的測試，依此類推。縮小此值可提高運算速度，但會降低輸出的多樣性，也可能導致輸出結果少於設定值。\
+一般建議用在最佳匹配結果輸出筆數較大，導致運算速度過慢時，適當降低此值。 (預設: %(default)s)""",
+    )
+    parser_search.add_argument(
+        '--bm', '--beam-mutliplier', dest='beam_multiplier', metavar='FACTOR',
+        default=3.0, type=float, action='store',
+        help="""集束搜尋演算法的集束擴充倍率。例如當集束寬度為 10，而此值為 3.0 時，精算取樣上限為 30 \
+(= 10 * 3.0)，演算法會在篩選每層最佳結果時，先用快捷算式搜集 30 個最佳樣本，再對這些樣本做精確匹配度計算\
+以取得 10 個局部最佳解。提高此值可減少遺漏最佳解的機會，但會降低運算速度。此值為 0 時，程式會直接略過快捷\
+算式對所有可能組合使用精算 (優於設定非常大的值)。一般建議用在確認或懷疑某些最佳匹配被遺漏時，適當加大此值。 \
+(預設: %(default)s)""",
     )
 
     parser_list = subparsers.add_parser(

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from functools import cached_property
 from itertools import combinations
-from math import sqrt
+from math import ceil, sqrt
 
 import numpy as np
 import yaml
@@ -15,6 +15,8 @@ DEFAULT_DATAFILE = os.path.normpath(os.path.join(__file__, '..', 'database.yaml'
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s - %(message)s')
 log = logging.getLogger(__name__)
+
+undefined = object()
 
 
 def load_formula_database(file):
@@ -49,9 +51,20 @@ def _load_formula_database(data):
     return rv
 
 
-def find_best_matches(database, target_composition, top_n=5, *args, **kwargs):
-    searcher = ExhaustiveFormulaSearcher(database, target_composition, *args, **kwargs)
-    return searcher.find_best_matches(top_n)
+def find_best_matches(database, target_composition, top_n=None, algorithm='beam', **opts):
+    beam_opts = {k: v for k, v in {
+        'beam_width_factor': opts.pop('beam_width_factor', undefined),
+        'beam_multiplier': opts.pop('beam_multiplier', undefined),
+    }.items() if v is not undefined}
+
+    if algorithm == 'beam':
+        searcher = BeamFormulaSearcher(database, target_composition, **opts, **beam_opts)
+        return searcher.find_best_matches(top_n)
+    elif algorithm == 'exhaustive':
+        searcher = ExhaustiveFormulaSearcher(database, target_composition, **opts)
+        return searcher.find_best_matches(top_n)
+    else:
+        raise ValueError(f'未支援此演算法: {algorithm}')
 
 
 class FormulaSearcher(ABC):
@@ -312,3 +325,140 @@ class ExhaustiveFormulaSearcher(FormulaSearcher):
         for i in range(0, min(len(self.cformulas), self.max_cformulas) + 1):
             for c in combinations(self.cformulas, i):
                 yield c
+
+
+class BeamFormulaSearcher(FormulaSearcher):
+    def __init__(self, database, target_composition, *,
+                 beam_width_factor=2.0, beam_multiplier=3.0, main_herb_threshold=0.6,
+                 **opts):
+        super().__init__(database, target_composition, **opts)
+        self.beam_width_factor = beam_width_factor
+        self.beam_multiplier = beam_multiplier
+        self.main_herb_threshold = main_herb_threshold
+
+    @cached_property
+    def beam_width(self):
+        value = self.__dict__['beam_width'] = self._calculate_beam_width(self.DEFAULT_TOP_N)
+        return value
+
+    def _calculate_beam_width(self, top_n):
+        return max(ceil(self.beam_width_factor * top_n), 1)
+
+    def find_best_matches(self, top_n=None):
+        top_n = self.DEFAULT_TOP_N if top_n is None else top_n
+        self.__dict__['beam_width'] = self._calculate_beam_width(top_n)
+        return super().find_best_matches(top_n)
+
+    def generate_combinations(self):
+        candidates = [(0, 100.0, (), ())]
+        for depth in range(self.max_cformulas):
+            if depth < self.max_cformulas - 1:
+                candidates = heapq.nlargest(
+                    self.beam_width,
+                    self.generate_unique_combinations_at_depth(depth, candidates),
+                    key=lambda x: x[1],
+                )
+                log.debug('第 %i 層候選: %s', depth, [x[2] for x in candidates])
+            else:
+                candidates = self.generate_unique_combinations_at_depth(depth, candidates)
+
+        for _, _, combo, _ in candidates:
+            yield combo
+
+    def generate_unique_combinations_at_depth(self, depth, candidates):
+        combos = set()
+        for item in self.generate_combinations_at_depth(depth, candidates):
+            depth, match_pct, combo, dosages = item
+            key = frozenset(combo)
+            if key in combos:
+                log.debug('略過重複項目: %s', combo)
+                continue
+            combos.add(key)
+            log.debug('輸出: [%i] %s %s (%.2f%%)', depth, combo, dosages, match_pct)
+            yield item
+
+    def generate_combinations_at_depth(self, depth, candidates):
+        for item in candidates:
+            yield item
+
+            n, _, combo, dosages = item
+            if n < depth:
+                continue
+
+            combo_set = set(combo)
+            gen = (f for f in self.cformulas if f not in combo_set)
+            if self.beam_multiplier > 0:
+                pool_size = ceil(self.beam_width * self.beam_multiplier)
+                gen = self.generate_heuristic_candidates(combo, dosages, pool_size, gen)
+
+            _new_dosages = np.append(dosages, (1.0,))
+            for formula in gen:
+                new_combo = combo + (formula,)
+                try:
+                    new_combo, new_dosages, match_pct = self.evaluate_combination(
+                        new_combo, initial_guess=_new_dosages)
+                except ValueError as exc:
+                    log.debug('略過錯誤項目: %s', new_combo, exc)
+                    continue
+
+                new_item = depth + 1, match_pct, new_combo, new_dosages
+                yield new_item
+
+    def generate_heuristic_candidates(self, combo, dosages, pool_size, gen):
+        main_herbs = self._calculate_main_herb(combo, dosages)
+
+        candidate_formulas = heapq.nlargest(
+            pool_size,
+            gen,
+            key=lambda f: self._calculate_formula_score(f, main_herbs),
+        )
+
+        for formula in candidate_formulas:
+            log.debug('快捷輸出: %s', formula)
+            yield formula
+
+    def _calculate_main_herb(self, combo, dosages):
+        """計算配方組合中的主要中藥
+
+        按劑量佔比排序，取累積總比例達主藥閾值 main_herb_threshold 的中藥。
+
+        假設主藥閾值為 60%，
+        若中藥佔比為 h1: 60%, h2: 30%, h3: 10%，則取 {h1} 為主藥；
+        若中藥佔比為 h1: 40%, h2: 40%, h3: 20%，則取 {h1, h2} 為主藥。
+        """
+        combined_composition = self.get_formula_composition(combo, dosages)
+        remaining_composition = {
+            herb: fixed_amount
+            for herb, amount in self.target_composition.items()
+            if (fixed_amount := np.round(amount - combined_composition.get(herb, 0), self.places)) > 0
+        }
+
+        weighted_herbs = sorted(remaining_composition.items(), key=lambda item: -item[1])
+        log.debug('剩餘組成: %s', weighted_herbs)
+
+        main_herbs = {}
+        weight = 0
+        total = sum(a for _, a in weighted_herbs)
+        for herb, amount in weighted_herbs:
+            main_herbs[herb] = None
+            weight += amount
+            if weight / total >= self.main_herb_threshold:
+                break
+        log.debug('主要中藥: %s', tuple(main_herbs))
+
+        return main_herbs
+
+    def _calculate_formula_score(self, formula, main_herbs):
+        """計算複方評分，以估算其是否適合填補目前的剩餘中藥組成
+
+        評分方式為計算複方中主要中藥佔全方的比例。
+        """
+        weight = 0
+        total = 0
+        for herb, amount in self.database[formula].items():
+            if herb in main_herbs:
+                weight += amount
+            total += amount
+        score = weight / total if total > 0 else 0
+        log.debug('快捷估值: %s: %.3f', formula, score)
+        return score
