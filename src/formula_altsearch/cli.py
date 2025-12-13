@@ -34,6 +34,90 @@ class CJKRawDescriptionHelpFormatter(argparse.RawDescriptionHelpFormatter):
         return lines
 
 
+def _bound_str(lower=None, upper=None, lower_open=False, upper_open=False):
+    lb = '∞' if lower is None else lower
+    ub = '∞' if upper is None else lower
+    lm = '(' if lower_open or lower is None else '['
+    um = ')' if upper_open or upper is None else ']'
+    return f'{lm}{lb}, {ub}{um}'
+
+
+def name_value(value_type):
+    def validator(value):
+        name, sep, dose_str = value.rpartition(':')
+
+        if not sep:
+            raise argparse.ArgumentTypeError("value must contain ':'")
+
+        try:
+            parsed_value = value_type(dose_str)
+        except Exception as exc:
+            raise argparse.ArgumentTypeError(f'invalid value: {exc}')
+
+        return name, parsed_value
+
+    validator.__name__ = f'name_value({value_type.__name__})'
+    return validator
+
+
+def bounded_float(lower=None, upper=None, lower_open=False, upper_open=False):
+    def validator(value):
+        try:
+            value = float(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"'{value}' is not a valid float number")
+
+        if lower is not None:
+            if lower_open:
+                if not value > lower:
+                    raise argparse.ArgumentTypeError(f'value must > {lower}')
+            else:
+                if not value >= lower:
+                    raise argparse.ArgumentTypeError(f'value must >= {lower}')
+
+        if upper is not None:
+            if upper_open:
+                if not value < upper:
+                    raise argparse.ArgumentTypeError(f'value must < {upper}')
+            else:
+                if not value <= upper:
+                    raise argparse.ArgumentTypeError(f'value must <= {upper}')
+
+        return value
+
+    validator.__name__ = f'float{_bound_str(lower, upper, lower_open, upper_open)}'
+    return validator
+
+
+def bounded_int(lower=None, upper=None, lower_open=False, upper_open=False):
+    def validator(value):
+        try:
+            value = int(value)
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"'{value}' is not a valid integer")
+
+        if lower is not None:
+            if lower_open:
+                if not value > lower:
+                    raise argparse.ArgumentTypeError(f'value must > {lower}')
+            else:
+                if not value >= lower:
+                    raise argparse.ArgumentTypeError(f'value must >= {lower}')
+
+        if upper is not None:
+            if upper_open:
+                if not value < upper:
+                    raise argparse.ArgumentTypeError(f'value must < {upper}')
+            else:
+                if not value <= upper:
+                    raise argparse.ArgumentTypeError(f'value must <= {upper}')
+
+        return value
+
+    validator.__name__ = f'int{_bound_str(lower, upper, lower_open, upper_open)}'
+    return validator
+
+
 def search(database, target_composition, **options):
     print('目標組成:')
     for herb, amount in target_composition.items():
@@ -166,11 +250,6 @@ def cmd_convert(args):
     handler.dump(data, args.output)
 
 
-def parse_item(value):
-    name, sep, dose = value.partition(':')
-    return name, float(dose)
-
-
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="""搜尋中藥配方的替代組合。""",
@@ -201,7 +280,8 @@ def parse_args(argv=None):
     )
     parser_search.set_defaults(func=cmd_search)
     parser_search.add_argument(
-        'items', metavar='NAME:DOSE', nargs='+', type=parse_item, action='store',
+        'items', metavar='NAME:DOSE', nargs='+', action='store',
+        type=name_value(bounded_float(0.1)),
         help="""要搜尋的科學中藥品項及劑量。例如 '補中益氣湯:6.0 桂枝:1.0'""",
     )
     parser_search.add_argument(
@@ -214,35 +294,43 @@ def parse_args(argv=None):
 '-e 桂枝去芍藥湯 -e 芍藥甘草湯'。NAME:DOSE 輸入的科學中藥複方會自動排除，不必額外加入。""",
     )
     parser_search.add_argument(
-        '--mc', '--max-cformulas', dest='max_cformulas', metavar='N', default=2, type=int, action='store',
+        '--mc', '--max-cformulas', dest='max_cformulas', metavar='N', default=2,
+        type=bounded_int(0), action='store',
         help="""最大科中複方數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--ms', '--max-sformulas', dest='max_sformulas', metavar='N', default=2, type=int, action='store',
+        '--ms', '--max-sformulas', dest='max_sformulas', metavar='N', default=2,
+        type=bounded_int(0), action='store',
         help="""最大科中單方數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--min-cformula-dose', metavar='N', default=1.0, type=float, action='store',
+        '--min-cformula-dose', metavar='N', default=1.0,
+        type=bounded_float(0.1), action='store',
         help="""最小科中複方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--min-sformula-dose', metavar='N', default=0.3, type=float, action='store',
+        '--min-sformula-dose', metavar='N', default=0.3,
+        type=bounded_float(0.1), action='store',
         help="""最小科中單方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--max-cformula-dose', metavar='N', default=50.0, type=float, action='store',
+        '--max-cformula-dose', metavar='N', default=50.0,
+        type=bounded_float(0.1), action='store',
         help="""最大科中複方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--max-sformula-dose', metavar='N', default=50.0, type=float, action='store',
+        '--max-sformula-dose', metavar='N', default=50.0,
+        type=bounded_float(0.1), action='store',
         help="""最大科中單方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '-p', '--penalty', metavar='FACTOR', default=2.0, type=float, action='store',
+        '-p', '--penalty', metavar='FACTOR', default=2.0,
+        type=bounded_float(0.0), action='store',
         help="""非目標藥材的懲罰倍率 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '-n', '--num', metavar='N', default=5, type=int, action='store',
+        '-n', '--num', metavar='N', default=5,
+        type=bounded_int(0, lower_open=True), action='store',
         help="""最佳匹配結果輸出筆數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
@@ -254,16 +342,16 @@ def parse_args(argv=None):
         help="""要使用的搜尋演算法 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--bwf', '--beam-width-factor', dest='beam_width_factor', metavar='FACTOR',
-        default=2.0, type=float, action='store',
+        '--bwf', '--beam-width-factor', dest='beam_width_factor', metavar='FACTOR', default=2.0,
+        type=bounded_float(0.0, lower_open=True), action='store',
         help="""集束搜尋演算法的集束寬度倍率。例如當此值為 2.0，而最佳匹配結果輸出筆數為 5 時，集束寬度為 10 \
 (= 5 * 2.0)，演算法會篩選出 10 個最佳的 1 個複方解，對這些最佳解做加上第 2 個複方的測試，再篩選出 10 個最佳解做\
 加上第 3 個複方的測試，依此類推。縮小此值可提高運算速度，但會降低輸出的多樣性，也可能導致輸出結果少於設定值。\
 一般建議用在最佳匹配結果輸出筆數較大，導致運算速度過慢時，適當降低此值。 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--bm', '--beam-mutliplier', dest='beam_multiplier', metavar='FACTOR',
-        default=3.0, type=float, action='store',
+        '--bm', '--beam-mutliplier', dest='beam_multiplier', metavar='FACTOR', default=3.0,
+        type=bounded_float(0.0), action='store',
         help="""集束搜尋演算法的集束擴充倍率。例如當集束寬度為 10，而此值為 3.0 時，精算取樣上限為 30 \
 (= 10 * 3.0)，演算法會在篩選每層最佳結果時，先用快捷算式搜集 30 個最佳樣本，再對這些樣本做精確匹配度計算\
 以取得 10 個局部最佳解。提高此值可減少遺漏最佳解的機會，但會降低運算速度。此值為 0 時，程式會直接略過快捷\
