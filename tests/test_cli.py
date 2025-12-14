@@ -34,7 +34,7 @@ class TestCmdSearch(unittest.TestCase):
         ))
         m_load.assert_called_once_with('custom_db.yaml')
         m_search.assert_called_once_with(
-            m_load.return_value, {'桂枝': 9, '白芍': 6},
+            m_load.return_value, {'桂枝': 9, '白芍': 6}, [('桂枝湯', 3)],
             algorithm='exhaustive', excludes={'桂枝湯'},
             penalty_factor=3, top_n=6,
             max_cformulas=2, max_sformulas=3,
@@ -93,7 +93,7 @@ class TestCmdSearch(unittest.TestCase):
         ))
         m_load.assert_called_once_with('custom_db.yaml')
         m_search.assert_called_once_with(
-            m_load.return_value, {'桂枝': 13, '白芍': 6},
+            m_load.return_value, {'桂枝': 13, '白芍': 6}, [('桂枝湯', 3), ('桂枝', 1)],
             algorithm='exhaustive', excludes={'桂枝湯'},
             penalty_factor=3, top_n=6,
             max_cformulas=2, max_sformulas=3,
@@ -152,7 +152,7 @@ class TestCmdSearch(unittest.TestCase):
         ))
         m_load.assert_called_once_with('custom_db.yaml')
         m_search.assert_called_once_with(
-            m_load.return_value, {'桂枝': 4, '白芍': 2},
+            m_load.return_value, {'桂枝': 4, '白芍': 2}, None,
             algorithm='exhaustive', excludes=set(),
             penalty_factor=5, top_n=10,
             max_cformulas=2, max_sformulas=3,

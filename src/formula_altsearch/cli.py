@@ -118,8 +118,14 @@ def bounded_int(lower=None, upper=None, lower_open=False, upper_open=False):
     return validator
 
 
-def search(database, target_composition, **options):
-    print('目標組成:')
+def search(database, target_composition, input_composition=None, **options):
+    if input_composition:
+        combo_str = ' '.join(f'{formula}:{dosage:.1f}' for formula, dosage in input_composition)
+        total = sum(dosage for _, dosage in input_composition)
+        combo_str = f'{combo_str} (總計: {total:.1f})'
+    else:
+        combo_str = ''
+    print(f'目標組成: {combo_str}')
     for herb, amount in target_composition.items():
         print(f'    {herb}: {amount:.2f}')
     print('')
@@ -196,6 +202,7 @@ def cmd_search(args):
         if unknowns:
             print(f'資料庫尚未收錄與以下中藥相關的科學中藥: {", ".join(unknowns)}')
             return
+        input_composition = None
     else:
         unknowns = {}
         for item, dosage in args.items:
@@ -210,8 +217,9 @@ def cmd_search(args):
         if unknowns:
             print(f'資料庫尚未收錄以下品項: {", ".join(unknowns)}')
             return
+        input_composition = args.items
 
-    search(database, target_composition, algorithm=args.algorithm, top_n=args.num,
+    search(database, target_composition, input_composition, algorithm=args.algorithm, top_n=args.num,
            excludes=excludes, max_cformulas=args.max_cformulas, max_sformulas=args.max_sformulas,
            min_cformula_dose=args.min_cformula_dose, min_sformula_dose=args.min_sformula_dose,
            max_cformula_dose=args.max_cformula_dose, max_sformula_dose=args.max_sformula_dose,
