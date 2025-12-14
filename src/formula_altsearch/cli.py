@@ -294,32 +294,32 @@ def parse_args(argv=None):
 '-e 桂枝去芍藥湯 -e 芍藥甘草湯'。NAME:DOSE 輸入的科學中藥複方會自動排除，不必額外加入。""",
     )
     parser_search.add_argument(
-        '--mc', '--max-cformulas', dest='max_cformulas', metavar='N', default=2,
+        '-C', '--max-cformulas', dest='max_cformulas', metavar='N', default=2,
         type=bounded_int(0), action='store',
         help="""最大科中複方數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--ms', '--max-sformulas', dest='max_sformulas', metavar='N', default=2,
+        '-S', '--max-sformulas', dest='max_sformulas', metavar='N', default=2,
         type=bounded_int(0), action='store',
         help="""最大科中單方數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--min-cformula-dose', metavar='N', default=1.0,
+        '-cd', '--min-cformula-dose', metavar='N', default=1.0,
         type=bounded_float(0.1), action='store',
         help="""最小科中複方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--min-sformula-dose', metavar='N', default=0.3,
+        '-sd', '--min-sformula-dose', metavar='N', default=0.3,
         type=bounded_float(0.1), action='store',
         help="""最小科中單方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--max-cformula-dose', metavar='N', default=50.0,
+        '-Cd', '--max-cformula-dose', metavar='N', default=50.0,
         type=bounded_float(0.1), action='store',
         help="""最大科中複方劑量 (預設: %(default)s)""",
     )
     parser_search.add_argument(
-        '--max-sformula-dose', metavar='N', default=50.0,
+        '-Sd', '--max-sformula-dose', metavar='N', default=50.0,
         type=bounded_float(0.1), action='store',
         help="""最大科中單方劑量 (預設: %(default)s)""",
     )
@@ -330,7 +330,7 @@ def parse_args(argv=None):
     )
     parser_search.add_argument(
         '-n', '--num', metavar='N', default=5,
-        type=bounded_int(0, lower_open=True), action='store',
+        type=bounded_int(0), action='store',
         help="""最佳匹配結果輸出筆數 (預設: %(default)s)""",
     )
     parser_search.add_argument(
