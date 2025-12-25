@@ -1,4 +1,5 @@
 import argparse
+import difflib
 import logging
 import time
 
@@ -130,10 +131,6 @@ def search(database, composition, excludes=None, raw=False, **opts):
             else:
                 unknowns[herb] = None
 
-        if unknowns:
-            yield f'資料庫尚未收錄與以下中藥相關的科學中藥: {", ".join(unknowns)}'
-            return
-
         combo_str = ''
     else:
         for formula, dosage in composition:
@@ -146,13 +143,19 @@ def search(database, composition, excludes=None, raw=False, **opts):
             else:
                 unknowns[formula] = None
 
-        if unknowns:
-            yield f'資料庫尚未收錄以下品項: {", ".join(unknowns)}'
-            return
-
         combo_str = ' '.join(f'{formula}:{dosage:.1f}' for formula, dosage in composition)
         total = sum(dosage for _, dosage in composition)
         combo_str = f'{combo_str} (總計: {total:.1f})'
+
+    if unknowns:
+        candidates = database.herbs if raw else database
+        for unknown in unknowns:
+            suggestions = difflib.get_close_matches(unknown, candidates, n=10, cutoff=0.1)
+            if suggestions:
+                yield f'資料庫尚未收錄「{unknown}」。你是不是想找: {", ".join(suggestions)}？'
+            else:
+                yield f'資料庫尚未收錄「{unknown}」'
+        return
 
     yield f'目標組成: {combo_str}'
     for herb, amount in target_composition.items():
