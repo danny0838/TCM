@@ -118,26 +118,55 @@ def bounded_int(lower=None, upper=None, lower_open=False, upper_open=False):
     return validator
 
 
-def search(database, target_composition, input_composition=None, **options):
-    if input_composition:
-        combo_str = ' '.join(f'{formula}:{dosage:.1f}' for formula, dosage in input_composition)
-        total = sum(dosage for _, dosage in input_composition)
-        combo_str = f'{combo_str} (總計: {total:.1f})'
-    else:
-        combo_str = ''
-    print(f'目標組成: {combo_str}')
-    for herb, amount in target_composition.items():
-        print(f'    {herb}: {amount:.2f}')
-    print('')
+def search(database, composition, excludes=None, raw=False, **opts):
+    excludes = set() if excludes is None else set(excludes)
 
-    print(f'品項總數: {len(database.keys())}')
-    print('')
+    target_composition = {}
+    unknowns = {}
+    if raw:
+        for herb, amount in composition:
+            if herb in database.herbs:
+                target_composition[herb] = target_composition.get(herb, 0) + amount
+            else:
+                unknowns[herb] = None
+
+        if unknowns:
+            yield f'資料庫尚未收錄與以下中藥相關的科學中藥: {", ".join(unknowns)}'
+            return
+
+        combo_str = ''
+    else:
+        for formula, dosage in composition:
+            if formula in database:
+                if formula in database.cformulas:
+                    excludes.add(formula)
+                adjusted = {herb: dosage * amount for herb, amount in database[formula].items()}
+                for herb, amount in adjusted.items():
+                    target_composition[herb] = target_composition.get(herb, 0) + amount
+            else:
+                unknowns[formula] = None
+
+        if unknowns:
+            yield f'資料庫尚未收錄以下品項: {", ".join(unknowns)}'
+            return
+
+        combo_str = ' '.join(f'{formula}:{dosage:.1f}' for formula, dosage in composition)
+        total = sum(dosage for _, dosage in composition)
+        combo_str = f'{combo_str} (總計: {total:.1f})'
+
+    yield f'目標組成: {combo_str}'
+    for herb, amount in target_composition.items():
+        yield f'    {herb}: {amount:.2f}'
+    yield ''
+
+    yield f'品項總數: {len(database.keys())}'
+    yield ''
 
     start = time.time()
-    best_matches = searcher.find_best_matches(database, target_composition, **options)
+    best_matches = searcher.find_best_matches(database, target_composition, excludes=excludes, **opts)
     elapsed = time.time() - start
-    print(f'搜尋費時: {elapsed}')
-    print('')
+    yield f'搜尋費時: {elapsed}'
+    yield ''
 
     for match in best_matches:
         match_percentage, combination, dosages = match
@@ -157,18 +186,18 @@ def search(database, target_composition, input_composition=None, **options):
 
         combination_str = ' '.join(f'{formula}:{dosage:.1f}' for formula, dosage in zip(combination, dosages))
         total = sum(dosages)
-        print(f'匹配度: {match_percentage:.2f}%，組合: {combination_str} (總計: {total:.1f})')
+        yield f'匹配度: {match_percentage:.2f}%，組合: {combination_str} (總計: {total:.1f})'
         for herb, amount in herbs_amount:
             if herb in target_composition:
                 herb = f'**{herb}**'
-            print(f'    {herb}: {amount:.2f}')
+            yield f'    {herb}: {amount:.2f}'
 
         if missing_herbs:
-            print('尚缺藥物:')
+            yield '尚缺藥物:'
             for herb, amount in missing_herbs.items():
-                print(f'    {herb}: {amount:.2f}')
+                yield f'    {herb}: {amount:.2f}'
 
-        print('')
+        yield ''
 
 
 def cmd_search(args):
@@ -179,42 +208,15 @@ def cmd_search(args):
         print(f'無法載入資料庫檔案: {args.database}')
         return
 
-    target_composition = {}
-    excludes = set(args.excludes)
+    gen = search(database, args.items, args.excludes, args.raw, top_n=args.num,
+                 max_cformulas=args.max_cformulas, max_sformulas=args.max_sformulas,
+                 min_cformula_dose=args.min_cformula_dose, min_sformula_dose=args.min_sformula_dose,
+                 max_cformula_dose=args.max_cformula_dose, max_sformula_dose=args.max_sformula_dose,
+                 penalty_factor=args.penalty, algorithm=args.algorithm,
+                 beam_width_factor=args.beam_width_factor, beam_multiplier=args.beam_multiplier)
 
-    if args.raw:
-        unknowns = {}
-        for herb, amount in args.items:
-            if herb in database.herbs:
-                target_composition[herb] = target_composition.get(herb, 0) + amount
-            else:
-                unknowns[herb] = None
-        if unknowns:
-            print(f'資料庫尚未收錄與以下中藥相關的科學中藥: {", ".join(unknowns)}')
-            return
-        input_composition = None
-    else:
-        unknowns = {}
-        for item, dosage in args.items:
-            if item in database:
-                if item in database.cformulas:
-                    excludes.add(item)
-                adjusted = {herb: dosage * amount for herb, amount in database[item].items()}
-                for herb, amount in adjusted.items():
-                    target_composition[herb] = target_composition.get(herb, 0) + amount
-            else:
-                unknowns[item] = None
-        if unknowns:
-            print(f'資料庫尚未收錄以下品項: {", ".join(unknowns)}')
-            return
-        input_composition = args.items
-
-    search(database, target_composition, input_composition, algorithm=args.algorithm, top_n=args.num,
-           excludes=excludes, max_cformulas=args.max_cformulas, max_sformulas=args.max_sformulas,
-           min_cformula_dose=args.min_cformula_dose, min_sformula_dose=args.min_sformula_dose,
-           max_cformula_dose=args.max_cformula_dose, max_sformula_dose=args.max_sformula_dose,
-           penalty_factor=args.penalty,
-           beam_width_factor=args.beam_width_factor, beam_multiplier=args.beam_multiplier)
+    for msg in gen:
+        print(msg)
 
 
 def cmd_list(args):
